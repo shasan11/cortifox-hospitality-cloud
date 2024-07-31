@@ -5,6 +5,7 @@ from contacts.models import Contact
 from core.models import get_current_user, get_current_user_branch
 from inventory.models import Product
 from django.contrib.auth.models import User
+from sales.models import Sale,SaleItem
 
 class OrderRegister(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -29,6 +30,13 @@ order_choices = (
     ("CC", "Cancelled")
 )
 
+order_payment_status=(
+    ("P", "Pending"),
+    ("C", "Complementary"),
+    ("pl", "Pay Later"),
+    ("sp", "Split Payment"),
+    ("paid", "paid"),
+)
 main_choices = (
     ("D", "Dine In Orders"),
     ("T", "Take Away Orders"),
@@ -38,6 +46,7 @@ main_choices = (
 
 class Order(models.Model):
     id = models.BigAutoField(primary_key=True)
+    sales_order=models.ForeignKey(Sale,on_delete=models.PROTECT,verbose_name="sales_order_to_order",null=True,blank=True)
     order_register = models.ForeignKey(OrderRegister, on_delete=models.PROTECT, related_name='orders')
     customer = models.ForeignKey(Contact, on_delete=models.PROTECT, verbose_name="Customer", blank=True, null=True, related_name='orders')
     table = models.ForeignKey(Table, on_delete=models.CASCADE, verbose_name="Table", blank=True, null=True, related_name="orders_at_table")
@@ -49,6 +58,7 @@ class Order(models.Model):
     completion_status = models.BooleanField(default=False, verbose_name="Completed")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Total Amount", editable=False, null=True, blank=True)
     order_notes = models.TextField(verbose_name="Order Notes", blank=True, null=True)
+    order_payment_status=models.CharField(choices=order_payment_status,default="p",max_length=100)
     created = models.DateTimeField(auto_now_add=True, verbose_name="Time Created")
     active = models.BooleanField(default=True)
 
@@ -68,6 +78,7 @@ class Order(models.Model):
 
 class OrderItems(models.Model):
     id = models.BigAutoField(primary_key=True)
+    sales_order_item=models.ForeignKey(SaleItem,on_delete=models.PROTECT,verbose_name="sales_order_to_order_item",null=True,blank=True)
     order = models.ForeignKey(Order, on_delete=models.CASCADE, verbose_name="Order", related_name='order_items')
     food_item = models.ForeignKey(Product, on_delete=models.PROTECT, verbose_name="Item", related_name='order_items')
     qty = models.PositiveSmallIntegerField(verbose_name="Quantity")
@@ -93,3 +104,5 @@ class OrderItems(models.Model):
     class Meta:
         verbose_name = "Order Item"
         verbose_name_plural = "Order Items"
+
+ 

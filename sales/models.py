@@ -5,8 +5,7 @@ from contacts.models import Contact
 from accounting.models import Currency, BankAccounts, PaymentMethod, ChartofAccounts
 from core.models import CustomUser as User
 from branch.models import Branch
-from core.userSession import get_current_user
-from core.userSession import get_current_user_branch
+from core.userSession import get_current_user, get_current_user_branch
 
 REVENUE_CODE_CHOICES = [
     ('11111', 'Income Tax relating to an individual or a proprietorship firm'),
@@ -48,9 +47,9 @@ class Quotation(models.Model):
     note = models.TextField(blank=True, null=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, null=True, default=get_current_user, related_name='quotations')
+    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, default=get_current_user, related_name='quotations')
     active = models.BooleanField(default=True)
-    branch = models.ForeignKey(Branch, default=get_current_user_branch, on_delete=models.PROTECT, null=True, blank=True, related_name='quotations')
+    branch = models.ForeignKey(Branch, default=get_current_user_branch, on_delete=models.PROTECT, related_name='quotations')
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -68,7 +67,7 @@ class QuoteItem(models.Model):
     tax = models.DecimalField(max_digits=5, decimal_places=2)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, null=True, default=get_current_user, related_name='quote_items')
+    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, default=get_current_user, related_name='quote_items')
     active = models.BooleanField(default=True)
     branch = models.ForeignKey(Branch, default=get_current_user_branch, on_delete=models.PROTECT, related_name='quote_items')
 
@@ -88,7 +87,7 @@ class Sale(models.Model):
     note = models.TextField(blank=True, null=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, null=True, default=get_current_user, related_name='sales')
+    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, default=get_current_user, related_name='sales')
     active = models.BooleanField(default=True)
     branch = models.ForeignKey(Branch, default=get_current_user_branch, on_delete=models.PROTECT, related_name='sales')
 
@@ -108,7 +107,7 @@ class SaleItem(models.Model):
     tax_type = models.CharField(max_length=100)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, null=True, default=get_current_user, related_name='sale_items')
+    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, default=get_current_user, related_name='sale_items')
     active = models.BooleanField(default=True)
     branch = models.ForeignKey(Branch, default=get_current_user_branch, on_delete=models.PROTECT, related_name='sale_items')
 
@@ -117,6 +116,7 @@ class SaleItem(models.Model):
 
 class Invoice(models.Model):
     id = models.BigAutoField(primary_key=True)
+    sales = models.ManyToManyField(Sale, related_name="sales_order_to_invoice")
     code = models.CharField(max_length=20, unique=True, editable=False)
     date = models.DateTimeField(default=timezone.now)
     expiry_date = models.DateTimeField()
@@ -128,8 +128,9 @@ class Invoice(models.Model):
     note = models.TextField(blank=True, null=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, null=True, default=get_current_user, related_name='invoices')
+    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, default=get_current_user, related_name='invoices')
     active = models.BooleanField(default=True)
+    is_cleared = models.BooleanField(default=False)
     branch = models.ForeignKey(Branch, default=get_current_user_branch, on_delete=models.PROTECT, related_name='invoices')
 
     def save(self, *args, **kwargs):
@@ -143,12 +144,13 @@ class Invoice(models.Model):
 class InvoiceItem(models.Model):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='invoice_items')
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='invoice_items')
+    sales = models.ManyToManyField(Sale, related_name="invoice_render_to_customer_payment")
     rate = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.PositiveIntegerField()
     tax_type = models.CharField(max_length=100)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, null=True, default=get_current_user, related_name='invoice_items')
+    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, default=get_current_user, related_name='invoice_items')
     active = models.BooleanField(default=True)
     branch = models.ForeignKey(Branch, default=get_current_user_branch, on_delete=models.PROTECT, related_name='invoice_items')
 
@@ -157,36 +159,35 @@ class InvoiceItem(models.Model):
 
 class CustomerPayment(models.Model):
     id = models.BigAutoField(primary_key=True)
+    sales = models.ForeignKey(Sale, on_delete=models.PROTECT, related_name='sale_order_to_customer_payment',blank=True,null=True)
+    invoices = models.ManyToManyField(Invoice, related_name='invoices_customer_payment')
+    payment_code = models.CharField(max_length=100,null=True,blank=True)
     code = models.CharField(max_length=20, unique=True, editable=False)
     date = models.DateTimeField(default=timezone.now)
+    customer = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name='customer_payments',blank=True,null=True)
     currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name='customer_payments')
     exchange_to_default = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    bank_acc = models.ForeignKey(BankAccounts, on_delete=models.PROTECT, related_name='customer_payments')
+    payment_mode = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT, related_name='customer_payments',null=True,blank=True)
+    revenue_code = models.CharField(max_length=100, choices=REVENUE_CODE_CHOICES,blank=True,null=True)
     credit_terms = models.CharField(max_length=100)
     tac = models.TextField(verbose_name="Terms and Conditions")
     note = models.TextField(blank=True, null=True)
-    from_customer = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name='customer_payments_form_acc')
-    bank_acc = models.ForeignKey(BankAccounts, on_delete=models.PROTECT, related_name='customer_payments')
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    payment_mode = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT, null=True, blank=True, related_name='customer_payments')
-    payment_ref = models.TextField(blank=True, null=True)
-    bank_charge_account = models.ForeignKey(ChartofAccounts, on_delete=models.PROTECT, null=True, blank=True, related_name='customer_payments_bank_Charge_store')
-    bank_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, default=0)
-    revenue_code = models.CharField(max_length=5, choices=REVENUE_CODE_CHOICES, blank=True, null=True,)
-    revenue_charge_account = models.ForeignKey(ChartofAccounts, on_delete=models.PROTECT, null=True, blank=True, related_name='customer_payments')
-    tds_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, default=0)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, null=True, default=get_current_user, related_name='customer_payments_user_add')
+    user_add = models.ForeignKey(User, on_delete=models.PROTECT, editable=False, default=get_current_user, related_name='customer_payments')
     active = models.BooleanField(default=True)
-    branch = models.ForeignKey(Branch, default=get_current_user_branch, on_delete=models.PROTECT, related_name='customer_payments_default_branch')
+    branch = models.ForeignKey(Branch, default=get_current_user_branch, on_delete=models.PROTECT, related_name='customer_payments')
 
     def save(self, *args, **kwargs):
         if not self.code:
-            self.code = generate_unique_code(CustomerPayment, 'PAY')
+            self.code = generate_unique_code(CustomerPayment, 'CP')
         super(CustomerPayment, self).save(*args, **kwargs)
 
     def __str__(self):
         return self.code
+
 
 class CreditNote(models.Model):
     id = models.BigAutoField(primary_key=True)

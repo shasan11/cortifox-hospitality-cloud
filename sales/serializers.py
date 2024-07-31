@@ -45,3 +45,13 @@ class CrnoteItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CrnoteItem
         fields = '__all__'
+from rest_framework import serializers
+
+class PaymentSerializer(serializers.Serializer):
+    payment_method_id = serializers.IntegerField()
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+class CheckoutSerializer(serializers.Serializer):
+    sales_id = serializers.IntegerField()
+    payment_type = serializers.ChoiceField(choices=["Complementary", "Pay Later", "Split Payment"])
+    payments = serializers.ListSerializer(child=PaymentSerializer(), required=False)
