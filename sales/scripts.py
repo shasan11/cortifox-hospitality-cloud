@@ -1,5 +1,5 @@
 from sales.models import Sale, SaleItem, Invoice, InvoiceItem, CustomerPayment, PaymentMethod
-from accounting.models import generate_unique_code
+from sales.models import generate_unique_code
 from django.utils import timezone
 
 def create_invoice_from_sale(sale_id):

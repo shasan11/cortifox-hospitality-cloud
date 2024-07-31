@@ -17,7 +17,7 @@ class ChartofAccounts(models.Model):
     under = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='sub_accounts')
     coa_type=models.CharField(max_length=100,choices=ACCOUNT_TYPE_CHOICES,default="Assets")
     desc = models.TextField(blank=True, null=True)
-    opening_balace=models.DecimalField(max_digits=10,decimal_places=2,default=0)
+    opening_balance=models.DecimalField(max_digits=10,decimal_places=2,default=0)
     code = models.CharField(max_length=20, unique=True)
     created=models.DateTimeField(auto_now_add=True)
     updated=models.DateTimeField(auto_now=True)
